@@ -52,14 +52,27 @@ function M.installModules(modules)
   end
 end
 
+
+local validaters={}
+function M.addvalidater(func)
+  table.insert(validaters,func)
+end
+
 function M.run()
   local config=ONNV.getConfig();
   if(not config)then
     log.warn("could not retrieve config");
     return;
   end
-  if(config.type~="oeshennix-onnv")then
-    log.warn("config type not valid");
+  local isvalid=false;
+  for c,v in pairs(validaters)do
+    if(v(config))then
+      isvalid=true;
+      break
+    end
+  end
+  if(not isvalid)then
+    return
   end
 
   if(not config.using)then
