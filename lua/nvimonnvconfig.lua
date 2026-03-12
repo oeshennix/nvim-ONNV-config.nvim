@@ -2,9 +2,11 @@ local ONNV=require("ONNV");
 local Config=require("nvimonnvconfig.config");
 local log=require("nvimonnvconfig.log");
 local onnvmodules=require("nvimonnvconfig.modules");
+local window=require("nvimonnvconfig.window");
 
 local M={}
 
+local initstatuswindow
 ---@param configuration ONNVConfigure.Config?
 function M.setup(configuration)
   if(configuration)then
@@ -31,28 +33,51 @@ function M.setup(configuration)
   });
 end
 
+
+local ModulesInstalled=false;
+local modulePostInstallFunctions={};
+
+local function awaitModuleInstallations(functiona)
+  if(ModulesInstalled)then
+    functiona()
+  else
+    table.insert(modulePostInstallFunctions,functiona);
+  end
+end
 function M.installModules(modules)
   if(type(modules)=="string")then
-    local modulename=modules;
-    local module=onnvmodules.load(modulename);
-    if(module)then
-      if(module.install)then
-        module.install(Config);
-      end
-    end
-    return
+    modules={modules};
   end
+  initstatuswindow=window.createstatuswindow(modules);
+  local installed={};
   for c,modulename in ipairs(modules)do
     local module=onnvmodules.load(modulename);
     if(module)then
       if(module.install)then
-        module.install(Config);
+        installed[modulename]=true;
+        module.install(Config,function(statustype,message)
+          ---types 0=install finished, 1=message 2=error
+          vim.schedule(function()
+            initstatuswindow:setmodulestatus(modulename,statustype,message)
+          end);
+          if(statustype~=0)then
+            return
+          end
+          installed[modulename]=nil;
+          if(next(installed)~=nil)then
+            return
+          end
+          ModulesInstalled=true;
+          for c,v in ipairs(modulePostInstallFunctions)do
+            v();
+          end
+        end);
       end
     end
   end
 end
 
-function M.run()
+local function run()
   local config=ONNV.getConfig();
   if(not config)then
     log.warn("could not retrieve config");
@@ -60,6 +85,9 @@ function M.run()
   end
   if(config.type~="oeshennix-onnv")then
     log.warn("config type not valid");
+  end
+  if(config.version~="0.1.0")then
+    log.warn("config version is not set to 0.1.0");
   end
 
   if(not config.using)then
@@ -72,10 +100,15 @@ function M.run()
   for c,v in ipairs(config.using)do
     local ModuleToLoad=onnvmodules.load(v);
     if(ModuleToLoad)then
-      print("hi");
-      ModuleToLoad.run(config);
+      ModuleToLoad.run(config,vim.schedule_wrap(function(message)
+        initstatuswindow:setmodulelog(v,1,".."..message)
+      end));
     end
   end
+end
+
+function M.run()
+  awaitModuleInstallations(run);
 end
 
 return M;
