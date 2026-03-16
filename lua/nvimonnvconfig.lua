@@ -97,14 +97,28 @@ local function run()
   if(not config.variables)then
     config.variables={};
   end
-  for c,v in ipairs(config.using)do
-    local ModuleToLoad=onnvmodules.load(v);
-    if(ModuleToLoad)then
-      ModuleToLoad.run(config,vim.schedule_wrap(function(message)
-        initstatuswindow:setmodulelog(v,1,".."..message)
-      end));
+  local selfcr;
+  --[[
+  local continueModules=vim.schedule_wrap(function()
+    coroutine.resume(selfcr);
+  end)
+  ]]
+  local function runModules()
+    for c,v in ipairs(config.using)do
+      local ModuleToLoad=onnvmodules.load(v);
+      if(ModuleToLoad)then
+        ModuleToLoad.run(config,vim.schedule_wrap(function(statustype,message)
+          initstatuswindow:setmodulelog(v,1,".."..message)
+          if(statustype==0)then
+            coroutine.resume(selfcr);
+          end
+        end));
+        coroutine.yield();
+      end
     end
   end
+  selfcr=coroutine.create(runModules);
+  coroutine.resume(selfcr);
 end
 
 function M.run()
