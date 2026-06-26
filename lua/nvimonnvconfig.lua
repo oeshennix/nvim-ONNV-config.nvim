@@ -42,12 +42,14 @@ function M.setup(configuration)
       path={vim.fn.getcwd().."/.ONNV.toml"}
     });
   end;
-  if(not configuration.alwaysInstall)then
+  vim.schedule(function()
+  if(configuration.alwaysInstall==nil)then
     local config=ONNV.getConfig();
     if(config and config.using)then
       M.installModules(config.using);
     end
   end
+  end);
 end
 
 
