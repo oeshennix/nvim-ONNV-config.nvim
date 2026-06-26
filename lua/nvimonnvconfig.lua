@@ -32,17 +32,22 @@ function M.setup(configuration)
   if(not bin_stat)then
     uv.fs_mkdir(installation_path.."/bin",tonumber("770",8));
   end
-  if(vim.fs.root(".ONNV.toml"))then
+  print(vim.fs.root(0,".ONNV.toml"))
+  if(vim.fs.root(0,".ONNV.toml"))then
     ONNV.setup({
-      path={vim.fs.root(".ONNV.toml").."/.ONNV.toml"}
+      path={vim.fs.root(0,".ONNV.toml").."/.ONNV.toml"}
     });
   else
-
     ONNV.setup({
       path={vim.fn.getcwd().."/.ONNV.toml"}
     });
+  end;
+  if(not configuration.alwaysInstall)then
+    local config=ONNV.getConfig();
+    if(config and config.using)then
+      M.installModules(config.using);
+    end
   end
-  log.warn("setup ended");
 end
 
 
