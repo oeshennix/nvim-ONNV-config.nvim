@@ -9,6 +9,7 @@ local M={}
 local initstatuswindow
 ---@param configuration ONNVConfigure.Config?
 function M.setup(configuration)
+  log.warn("setup started");
   if(configuration)then
     Config(configuration);
   end
@@ -19,18 +20,29 @@ function M.setup(configuration)
   if(not installation_path_stat or not installation_path_stat.type=="directory")then
     log.warn(string.format("installation_path \"%s\" is not a valid path",installation_path));
   end
+
   assert(installation_path_stat and installation_path_stat.type=="directory",string.format("installation_path \"%s\" is not a valid path",installation_path));
   --create bin if it doesnt exist
   local bin_stat=uv.fs_stat(installation_path.."/bin");
+
   if(bin_stat)then
     assert(bin_stat.type=="directory",string.format("\"%s/bin\" is not a directory move or delete \"%s/bin\"" or not bin_stat,installation_path,installation_path))
   end
+
   if(not bin_stat)then
     uv.fs_mkdir(installation_path.."/bin",tonumber("770",8));
   end
-  ONNV.setup({
-    path={vim.fn.getcwd().."/.ONNV.toml"}
-  });
+  if(vim.fs.root(".ONNV.toml"))then
+    ONNV.setup({
+      path={vim.fs.root(".ONNV.toml").."/.ONNV.toml"}
+    });
+  else
+
+    ONNV.setup({
+      path={vim.fn.getcwd().."/.ONNV.toml"}
+    });
+  end
+  log.warn("setup ended");
 end
 
 
@@ -54,6 +66,7 @@ function M.installModules(modules)
     local module=onnvmodules.load(modulename);
     if(module)then
       if(module.install)then
+        log.warn(string.format("installing module: %s [%d/%d]",modulename,c,#modules));
         installed[modulename]=true;
         module.install(Config,function(statustype,message)
           ---types 0=install finished, 1=message 2=error
@@ -72,6 +85,8 @@ function M.installModules(modules)
             v();
           end
         end);
+      else
+        log.warn(string.format("skipping module: %s [%d/%d]",modulename,c,#modules));
       end
     end
   end
@@ -116,6 +131,7 @@ local function run()
         coroutine.yield();
       end
     end
+    initstatuswindow:close();
   end
   selfcr=coroutine.create(runModules);
   coroutine.resume(selfcr);
