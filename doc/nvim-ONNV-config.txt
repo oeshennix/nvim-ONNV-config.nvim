@@ -1,0 +1,160 @@
+*nvim-ONNV-config.txt*     nvim-ONNV-config.nvim 
+
+CONTENTS
+Quick Setup
+
+==============================================================================
+Quick Setup                                        *nvimonnvconfig-quicksetup*
+
+Install Configuration Modules packs like oeshennix-ONNV-config.nvim
+
+>lua
+--Pckr plugin specs
+{'oeshennix/nvim-ONNV-config.nvim',
+  requires={
+    'oeshennix/ONNV',
+    'oeshennix/oeshennix-ONNV-config.nvim'
+  },
+  config=function()
+    require('nvimonnvconfig').setup({
+      installation_path=require('pckr.config').pack_dir.."/pack/pckr/opt/nvim-ONNV-config.nvim"
+    });
+    require('oeshennixonnvconfig').setup({
+      installation_path=require('pckr.config').pack_dir.."/pack/pckr/opt/oeshennix-ONNV-config.nvim"
+    });
+  end
+}
+<
+
+                                                                *ONNV.toml*
+In your project directoy create a file called .ONNV.toml
+Inside the file put
+
+>toml
+type="oeshennix-onnv"
+using=["env","nix","LSP"]
+[env]
+"ONNVenv"="this string will be put in the environment variable ONNVenv"
+
+[nix]
+executables=["nixpkgs#llvmPackages_20.clang-tools"]
+
+[LSP]
+clients=["clangd"]
+[LSP.clangd]
+cmd=["clangd"]
+<
+
+
+==============================================================================
+Overview                                             *nvimonnvconfig-overview*
+
+a simple config has its `type` set to "oeshennix-onnv"
+`version` set to the current version of nvim-ONNV-config (current is 0.1.0)
+and `using` set to a list of modules that will the installed and used
+
+nvim-ONNV-config is primarily designed by 2 Phases:
+  - installPhase
+  - runningPhase
+
+InstallPhase                                     *nvimonnvconfig-installPhase*
+
+The install phase is where each modules are installed.
+Note that every modules are installed asynchronously.
+every module that was part of the using variable in your ONNV-config is
+installed.
+
+RunningPhase                                     *nvimonnvconfig-runningPhase*
+
+The running phase is where each modules are used.
+Modules are run asynchronously but in order of the using variable in your
+ONNV-config.
+
+So in the |nvimonnvconfig-quicksetup| the the modules are ran in env -> nix ->
+LSP. order can be changed but be weary that if Modules may be dependant on
+modules before them.
+==============================================================================
+Creating Modules                                      *nvimonnvconfig-modules*
+
+Creating modules for nvimonnvconfig is pretty simple.  In your own neovim
+plugin add the directories nvimonnvconfig/modules.  This directory is
+important since it is how nvimonnvconfig finds modules.
+
+ANATOMY
+--------------------------
+  plugin
+  |
+  | nvimonnvconfig/modules
+  | |
+  | | [MODULE_NAME].lua
+--------------------------
+
+MODULE_NAME.lua must return a table that contain the following functions as
+its parameters
+  - install (OPTIONAL)
+  - run     (REQUIRED)
+
+Module.install                                      *nvim-ONNV-module.install*
+install takes 2 arguments SetupConfig and callback the SetupConfig is the
+configuration you setup when you called nvim-ONNV-config.setup(). Your plugin
+may use properties in the setup config to determine how the module may be
+installed. The install function returns no values as whether the install is
+successful depends on whether the functions call callback
+
+the first parameter of callback is a number that tells nvim-ONNV-config
+information of the installation phase.
+The possible numbers to be used are:
+  - 0: installation is finished regaurdless of whether it is successful log
+  information to window and continue.
+  - 1: installation is not finished but log information to window
+  - 2: installation has an error and log the error (does not finish install)
+
+nvim-ONNV-config waits for all installations to finish or fail before going
+into the run phase.
+
+Module.run                                              *nvim-ONNV-module.run*
+
+the module.run also works on a callback system.  with callback numbers to tell
+
+Module.run takes 2 parameters baseconfig and callback
+baseconfig is basically the full configuration of your |ONNV.toml| file.
+except that values may have been modified depending on the modules that ran
+before it.
+
+nvim-ONNV-config information
+The possible numbers to be used are:
+  -0: module has finished doing its job
+  -anything else: log information
+
+These values are subjectable to change in future version of nvim-ONNV-config
+
+
+Uuuh that is basically it of how nvim-ONNV-config uses plugins.  So go make
+your own please and possible make forks to make this doc more understandable.
+
+also should checkout oeshennix-ONNV-config.nvim of how I made modules for
+nvim-ONNV-config :)
+
+==============================================================================
+ONNV Morphers                                                  *ONNV-morphers*
+ONNV-morphers are a set of customizable functions that can be used by Modules
+to change the values of certain variables.
+
+checkout github.com/oeshennix/ONNV/lua/ONNV/morph.lua for some clue of how it
+works.
+
+Basically if a Module wants a string value but sees a ONNV-morph-list
+It can ask for ONNV-morphers to change the value of what was expected
+
+for example the "var" or "env" warpers
+
+in your |ONNV.toml| you can also have a table like
+>toml
+[var]
+C_LSP= "clangd"
+[LSP]
+clients = [["var","C_LSP"]]
+<
+
+note that since Modules like oeshennix-ONNV-config's nix module can edit the
+baseconfig and add 

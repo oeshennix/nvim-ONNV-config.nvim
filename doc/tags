@@ -1,0 +1,10 @@
+ONNV-morphers	nvim-ONNV-config.txt	/*ONNV-morphers*
+ONNV.toml	nvim-ONNV-config.txt	/*ONNV.toml*
+nvim-ONNV-config.txt	nvim-ONNV-config.txt	/*nvim-ONNV-config.txt*
+nvim-ONNV-module.install	nvim-ONNV-config.txt	/*nvim-ONNV-module.install*
+nvim-ONNV-module.run	nvim-ONNV-config.txt	/*nvim-ONNV-module.run*
+nvimonnvconfig-installPhase	nvim-ONNV-config.txt	/*nvimonnvconfig-installPhase*
+nvimonnvconfig-modules	nvim-ONNV-config.txt	/*nvimonnvconfig-modules*
+nvimonnvconfig-overview	nvim-ONNV-config.txt	/*nvimonnvconfig-overview*
+nvimonnvconfig-quicksetup	nvim-ONNV-config.txt	/*nvimonnvconfig-quicksetup*
+nvimonnvconfig-runningPhase	nvim-ONNV-config.txt	/*nvimonnvconfig-runningPhase*
