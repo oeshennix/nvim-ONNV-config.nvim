@@ -10,28 +10,41 @@ statuswindow.__index=statuswindow;
 
 ---@param statustype number
 ---@param message string
-function statuswindow:setmodulestatus(module,statustype,message)
+function statuswindow:setmodulemark(module,marker)
   local buf=rawget(self,"buf");
-  print(module,"gub",rawget(self,"modulepositions")[module]);
   local position=rawget(self,"modulepositions")[module];
-  if(not positions)then
-    log.warn("status window not created");
-  else
-    vim.api.nvim_buf_set_lines(buf,position+1,position+2,true,{"  "..message});
+  local modulemarkers= rawget(self,"markers");
+  local modulemarker = modulemarkers[module];
+  local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
+  modulemarker.virt_text[1][1]=marker;
+  vim.api.nvim_buf_set_extmark(buf,onnv_nix,position,0,modulemarker);
+end
+function statuswindow:setmodulestatus(module,status)
+  local modulestatuses = rawget(self,"modulestatuses");
+  modulestatuses[module]=status;
+  if(status == "installed")then
+    self:setmodulemark(module,"I");
+  else if(status == "noInstall")then
+    self:setmodulemark(module,"#");
+  end
   end
 end
 function statuswindow:setmodulelog(module,statustype,message)
   local buf=rawget(self,"buf");
   local position=rawget(self,"modulepositions")[module];
-  if(not positions)then
+  if(not position)then
     log.warn("status window not created");
+    log.warn("format thing "..vim.inspect(module)..vim.inspect(rawget(self,"modulepositions")));
   else
+    message=string.gsub(message,"\n","[NEWLINE]");
     vim.api.nvim_buf_set_lines(buf,position+2,position+3,true,{"  "..message});
   end
 end
-function statuswindow:registermoduleposititioninwindow() local buf=rawget(self,"buf");
+function statuswindow:registermoduleposititioninwindow()
+  local buf=rawget(self,"buf");
   local modules=rawget(self,"modules");
   local modulepositions={}
+  local modulevirttext={};
   local replace={};
   for c,v in ipairs(modules)do
     local position=(c-1)*3;
@@ -40,8 +53,42 @@ function statuswindow:registermoduleposititioninwindow() local buf=rawget(self,"
     table.insert(replace,"");
     table.insert(replace,"");
   end
+
   vim.api.nvim_buf_set_lines(buf,0,0,true,replace);
+
+  local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
+  for c,v in ipairs(modules)do
+    local position = modulepositions[v]
+    local mark = {
+      virt_text_pos = "overlay",
+      virt_text = {
+        {v,"magenta"}
+      },
+      priority = 5000
+    }
+    vim.api.nvim_buf_set_extmark(buf,onnv_nix,position,0,mark);
+  end
+  rawset(self,"modulevirttext",modulevirttext);
   rawset(self,"modulepositions",modulepositions);
+end
+function statuswindow:registermarkers()
+  local buf=rawget(self,"buf");
+  local modules = rawget(self,"modules");
+
+  local modulepositions = rawget(self,"modulepositions");
+  local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
+  local markers = {};
+  for index,module in ipairs(modules)do
+    local extmark={
+      virt_text={{"hi","magenta"},{" ","none"}},
+      virt_text_pos="inline"
+    }
+    local position = modulepositions[module];
+    local markerid=vim.api.nvim_buf_set_extmark(buf,onnv_nix,position,0,extmark);
+    extmark.id=markerid;
+    markers[module] = extmark;
+  end
+  self.markers = markers;
 end
 function statuswindow:close()
   local buf=rawget(self,"buf");
@@ -52,25 +99,42 @@ function statuswindow:close()
   vim.uv.timer_stop(spinnertimer);
   vim.uv.close(spinnertimer);
 end
+local braile_spinner={"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"};
 function statuswindow:newspinner()
+  local buf=rawget(self,"buf");
+  local win=rawget(self,"win");
   local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
-  local braile_spinner={"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"};
+
+  local modules = rawget(self,"modules");
+  local modulepositions = rawget(self,"modulepositions");
+  assert(modulepositions,"modulepositions does not exist");
   local spinnerpt=1;
-  local extmarkspinner={
-    virt_text={{braile_spinner[spinnerpt],"magenta"},{" ","none"}},
-    virt_text_pos="inline"
-  }
-  local spinnerid=vim.api.nvim_buf_set_extmark(buf,onnv_nix,0,0,extmarkspinner);
-  extmarkspinner.id=spinnerid;
+
+  local spinnermarks = {};
+  for index,module in ipairs(modules)do
+    if(status=="installing")then
+      local extmarkspinner = spinnermarks[module];
+      self:setmodulemark(module,braile_spinner[spinnerpt]);
+    end
+  end
+
+
   local spinnertimer=vim.uv.new_timer();
   spinnertimer:start(0,100,function()
     vim.schedule(function()
+      if(not vim.api.nvim_buf_is_valid(buf))then return end
       spinnerpt=(spinnerpt)%8+1;
-      extmarkspinner.virt_text[1][1]=braile_spinner[spinnerpt];
-      vim.api.nvim_buf_set_extmark(buf,onnv_nix,0,0,extmarkspinner);
+      for _,module in ipairs(self.modules) do
+        local status = self.modulestatuses[module];
+        if(status=="installing")then
+          local extmarkspinner = spinnermarks[module];
+          self:setmodulemark(module,braile_spinner[spinnerpt]);
+        end
+      end
     end);
   end);
-  newstatuswindow.spinnertimer=spinnertimer;
+  self.spinnermarks = {};
+  self.spinnertimer=spinnertimer;
 end
 
 function M.createinitwindow(windowconfig)
@@ -112,9 +176,15 @@ function M.createstatuswindow(modules)
   newstatuswindow.buf=buf;
   newstatuswindow.win=win;
   newstatuswindow.modules=modules;
+  newstatuswindow.modulestatuses={};
+  newstatuswindow.statusmarks={};
   setmetatable(newstatuswindow,statuswindow);
   newstatuswindow:registermoduleposititioninwindow();
+  newstatuswindow:registermarkers();
   newstatuswindow:newspinner();
+  for _,module in ipairs(modules) do
+    newstatuswindow:setmodulestatus(module,"installing");
+  end
   return newstatuswindow;
 end
 return M;

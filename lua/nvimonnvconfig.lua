@@ -7,7 +7,7 @@ local window=require("nvimonnvconfig.window");
 local M={}
 
 local initstatuswindow
----@param configuration ONNVConfigure.Config?
+---@param configuration ONNVConfigure.Config.InstallationType?
 function M.setup(configuration)
   log.warn("setup started");
   if(configuration)then
@@ -43,12 +43,12 @@ function M.setup(configuration)
     });
   end;
   vim.schedule(function()
-  if(configuration.alwaysInstall==nil)then
-    local config=ONNV.getConfig();
-    if(config and config.using)then
-      M.installModules(config.using);
+    if(configuration.alwaysInstall==nil)then
+      local config=ONNV.getConfig();
+      if(config and config.using)then
+        M.installModules(config.using);
+      end
     end
-  end
   end);
 end
 
@@ -56,42 +56,53 @@ end
 local ModulesInstalled=false;
 local modulePostInstallFunctions={};
 
-local function awaitModuleInstallations(functiona)
+---@param func function
+local function awaitModuleInstallations(func)
   if(ModulesInstalled)then
-    functiona()
+    func()
   else
-    table.insert(modulePostInstallFunctions,functiona);
+    table.insert(modulePostInstallFunctions,func);
   end
 end
+
 function M.installModules(modules)
   if(type(modules)=="string")then
     modules={modules};
   end
+  --local modulepack=
   initstatuswindow=window.createstatuswindow(modules);
-  local installed={};
+  local awaitinginstall={};
+  local function handleInstallations(modulename)
+    while(true)do
+      if(not awaitinginstall[modulename])then
+        log.warn(string.format('module "%s" is already installed',modulename));
+        return;
+      end
+      awaitinginstall[modulename] = nil;
+      if(not next(awaitinginstall))then
+        log.warn(string.format("all modules installed"));
+        vim.schedule(function()
+          for _,func in ipairs(modulePostInstallFunctions)do
+            func();
+          end
+        end);
+        return;
+      end
+      log.warn(string.format("still awaiting for module %s",next(awaitinginstall)));
+      modulename = coroutine.yield();
+    end
+  end
+  local handleInstallations_coroutine=coroutine.create(handleInstallations);
   for c,modulename in ipairs(modules)do
     local module=onnvmodules.load(modulename);
     if(module)then
+      local InstallHandler = onnvmodules.install(modulename,module,initstatuswindow);
       if(module.install)then
+        awaitinginstall[modulename] = true;
         log.warn(string.format("installing module: %s [%d/%d]",modulename,c,#modules));
-        installed[modulename]=true;
-        module.install(Config,function(statustype,message)
-          ---types 0=install finished, 1=message 2=error
-          vim.schedule(function()
-            initstatuswindow:setmodulestatus(modulename,statustype,message)
-          end);
-          if(statustype~=0)then
-            return
-          end
-          installed[modulename]=nil;
-          if(next(installed)~=nil)then
-            return
-          end
-          ModulesInstalled=true;
-          for c,v in ipairs(modulePostInstallFunctions)do
-            v();
-          end
-        end);
+        InstallHandler:onInstall(function()
+          coroutine.resume(handleInstallations_coroutine,modulename);
+        end)
       else
         log.warn(string.format("skipping module: %s [%d/%d]",modulename,c,#modules));
       end
@@ -105,9 +116,6 @@ local function run()
     log.warn("could not retrieve config");
     return;
   end
-  if(config.type~="oeshennix-onnv")then
-    log.warn("config type not valid");
-  end
   if(config.version~="0.1.0")then
     log.warn("config version is not set to 0.1.0");
   end
@@ -120,17 +128,12 @@ local function run()
     config.variables={};
   end
   local selfcr;
-  --[[
-  local continueModules=vim.schedule_wrap(function()
-    coroutine.resume(selfcr);
-  end)
-  ]]
   local function runModules()
-    for c,v in ipairs(config.using)do
-      local ModuleToLoad=onnvmodules.load(v);
+    for _,modulename in ipairs(config.using)do
+      local ModuleToLoad=onnvmodules.load(modulename);
       if(ModuleToLoad)then
         ModuleToLoad.run(config,vim.schedule_wrap(function(statustype,message)
-          initstatuswindow:setmodulelog(v,1,".."..message)
+          initstatuswindow:setmodulelog(modulename,1,".."..message)
           if(statustype==0)then
             coroutine.resume(selfcr);
           end
