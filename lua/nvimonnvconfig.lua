@@ -7,7 +7,7 @@ local window=require("nvimonnvconfig.window");
 local M={}
 
 local initstatuswindow
----@param configuration ONNVConfigure.Config.InstallationType?
+---@param configuration ONNVConfigure.Config.InstallationType | any?
 function M.setup(configuration)
   log.warn("setup started");
   if(configuration)then
@@ -65,11 +65,12 @@ local function awaitModuleInstallations(func)
   end
 end
 
+---@param modules string[] | string
 function M.installModules(modules)
   if(type(modules)=="string")then
     modules={modules};
   end
-  --local modulepack=
+  ---@cast modules string[]
   initstatuswindow=window.createstatuswindow(modules);
   local awaitinginstall={};
   local function handleInstallations(modulename)

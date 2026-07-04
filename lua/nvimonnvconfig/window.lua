@@ -1,15 +1,20 @@
 local log=require("nvimonnvconfig.log");
 local M={};
 
+---@alias modulename string name of module
+
+---@alias modulestatus "installing" | "installed" | "noInstall" 
+
 ---@class statuswindow
 ---@field buf number
 ---@field win number
-
+---@field modules string[]
+---@field modulestatuses {string:modulestatus}
 local statuswindow={}
 statuswindow.__index=statuswindow;
 
----@param statustype number
----@param message string
+---@param module modulename
+---@param marker string
 function statuswindow:setmodulemark(module,marker)
   local buf=rawget(self,"buf");
   local position=rawget(self,"modulepositions")[module];
@@ -19,8 +24,11 @@ function statuswindow:setmodulemark(module,marker)
   modulemarker.virt_text[1][1]=marker;
   vim.api.nvim_buf_set_extmark(buf,onnv_nix,position,0,modulemarker);
 end
+
+---@param module modulename
+---@param status modulestatus
 function statuswindow:setmodulestatus(module,status)
-  local modulestatuses = rawget(self,"modulestatuses");
+  local modulestatuses = rawget(self,"modulestatuses") --[[@as modulestatus]];
   modulestatuses[module]=status;
   if(status == "installed")then
     self:setmodulemark(module,"I");
@@ -29,7 +37,9 @@ function statuswindow:setmodulestatus(module,status)
   end
   end
 end
-function statuswindow:setmodulelog(module,statustype,message)
+---@param module modulename
+---@param message string
+function statuswindow:setmodulelog(module,message)
   local buf=rawget(self,"buf");
   local position=rawget(self,"modulepositions")[module];
   if(not position)then
@@ -57,7 +67,7 @@ function statuswindow:registermoduleposititioninwindow()
   vim.api.nvim_buf_set_lines(buf,0,0,true,replace);
 
   local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
-  for c,v in ipairs(modules)do
+  for _,v in ipairs(modules)do
     local position = modulepositions[v]
     local mark = {
       virt_text_pos = "overlay",
@@ -78,7 +88,7 @@ function statuswindow:registermarkers()
   local modulepositions = rawget(self,"modulepositions");
   local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
   local markers = {};
-  for index,module in ipairs(modules)do
+  for _,module in ipairs(modules)do
     local extmark={
       virt_text={{"hi","magenta"},{" ","none"}},
       virt_text_pos="inline"
@@ -102,24 +112,21 @@ end
 local braile_spinner={"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"};
 function statuswindow:newspinner()
   local buf=rawget(self,"buf");
-  local win=rawget(self,"win");
-  local onnv_nix=vim.api.nvim_create_namespace("onnv_nix");
 
   local modules = rawget(self,"modules");
   local modulepositions = rawget(self,"modulepositions");
   assert(modulepositions,"modulepositions does not exist");
   local spinnerpt=1;
 
-  local spinnermarks = {};
-  for index,module in ipairs(modules)do
-    if(status=="installing")then
-      local extmarkspinner = spinnermarks[module];
+  for _,module in ipairs(modules)do
+    if(self.modulestatuses[module]=="installing")then
       self:setmodulemark(module,braile_spinner[spinnerpt]);
     end
   end
 
 
   local spinnertimer=vim.uv.new_timer();
+  assert(spinnertimer,"could not create timer for spinner");
   spinnertimer:start(0,100,function()
     vim.schedule(function()
       if(not vim.api.nvim_buf_is_valid(buf))then return end
@@ -127,7 +134,6 @@ function statuswindow:newspinner()
       for _,module in ipairs(self.modules) do
         local status = self.modulestatuses[module];
         if(status=="installing")then
-          local extmarkspinner = spinnermarks[module];
           self:setmodulemark(module,braile_spinner[spinnerpt]);
         end
       end
@@ -140,7 +146,7 @@ end
 function M.createinitwindow(windowconfig)
   local buf=vim.api.nvim_create_buf(false,true);
   local width=vim.o.columns
-  local height=vim.o.lines
+  --local height=vim.o.lines
   ---@type vim.api.keyset.win_config
   local winconfig = vim.tbl_extend("keep",windowconfig,
     {
@@ -169,7 +175,7 @@ function M.createinitwindow(windowconfig)
   return buf,win
 end
 
-
+---@param modules modulename[]
 function M.createstatuswindow(modules)
   local buf,win=M.createinitwindow({});
   local newstatuswindow={};

@@ -5,18 +5,25 @@ local M={}
 function M.load(module)
   return require("nvimonnvconfig.modules."..module);
 end
+---@class ModuleInstallHandler
+---@field initstatuswindow statuswindow
+---@field modulename string
+---@field installed boolean
 local ModuleInstallHandler={};
 ModuleInstallHandler.__index=ModuleInstallHandler;
 
+---@param status_type number
+---@param message string
 function ModuleInstallHandler:log(status_type,message)
   local modulename = rawget(self,"modulename");
-  local onlog = rawget(self,"onlog");
   local initstatuswindow = rawget(self,"initstatuswindow");
   log.warn("adsfasdfasdf"..message);
   if(self.initstatuswindow)then
     initstatuswindow:setmodulelog(modulename,status_type,message);
   end
 end
+
+---@param func function
 function ModuleInstallHandler:onInstall(func)
   local installed = rawget(self,"installed");
   if(not installed)then
@@ -31,6 +38,9 @@ function ModuleInstallHandler:onInstall(func)
   func(0);
 end
 
+---@param modulename string
+---@param module any
+---@param initstatuswindow statuswindow
 function ModuleInstallHandler.new(modulename,module,initstatuswindow)
   local info={};
   info.modulename=modulename;
@@ -87,6 +97,9 @@ function ModuleInstallHandler.new(modulename,module,initstatuswindow)
   return info;
 end
 
+---@param modulename string
+---@param module any
+---@param initstatuswindow statuswindow
 function M.install(modulename,module,initstatuswindow)
   return ModuleInstallHandler.new(modulename,module,initstatuswindow);
 end
@@ -100,7 +113,6 @@ end
 
 function M.createModulePack(modules)
   local pack = {};
-  
   return setmetatable(pack,ModulePack);
 end
 
