@@ -134,7 +134,7 @@ local function run()
       local ModuleToLoad=onnvmodules.load(modulename);
       if(ModuleToLoad)then
         ModuleToLoad.run(config,vim.schedule_wrap(function(statustype,message)
-          initstatuswindow:setmodulelog(modulename,1,".."..message)
+          initstatuswindow:setmodulelog(modulename,message)
           if(statustype==0)then
             coroutine.resume(selfcr);
           end
